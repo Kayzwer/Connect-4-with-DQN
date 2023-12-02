@@ -47,7 +47,7 @@ class CNNStateActionValueNetwork(nn.Module):
         for layer in self.layers:
             if isinstance(layer, (nn.Linear, nn.Conv2d)):
                 nn.init.kaiming_uniform_(layer.weight, nonlinearity='relu')
-                nn.init.normal_(layer.bias)
+                nn.init.zeros_(layer.bias)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.layers(x)

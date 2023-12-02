@@ -20,7 +20,7 @@ class ReplayBuffer:
         self.is_done_memory = np.empty(buffer_size, dtype=np.bool_)
         self.memory_ptr = 0
         self.cur_size = 0
-    
+
     def store(self, state: np.ndarray, action: int, reward: float,
               next_state: np.ndarray, is_done: bool) -> None:
         self.state_memory[self.memory_ptr] = np.expand_dims(state, 0)
@@ -30,7 +30,7 @@ class ReplayBuffer:
         self.is_done_memory[self.memory_ptr] = is_done
         self.memory_ptr = (self.memory_ptr + 1) % self.buffer_size
         self.cur_size = min(self.cur_size + 1, self.buffer_size)
-        
+
     def sample(self) -> Dict[str, torch.Tensor]:
         selected_idxs = np.random.choice(self.cur_size, self.batch_size,
                                          False)
@@ -42,7 +42,7 @@ class ReplayBuffer:
                 selected_idxs]),
             "is_dones": torch.from_numpy(self.is_done_memory[selected_idxs])
         }
-        
+
 
 class Agent:
     def __init__(self, state_shape: Tuple[int, int], n_actions: int,
@@ -88,22 +88,21 @@ class Agent:
                 data["next_states"], data["is_dones"])
             states_action_values = self.network(states).gather(
                 1, actions.unsqueeze(0).T)
-            loss = torch.nn.functional.huber_loss(
+            loss = torch.nn.functional.mse_loss(
                 states_action_values, rewards.view(-1, 1) + self.gamma *
                 self.target_network(next_states).max(1)[0].view(-1, 1).detach()
                 * ~is_dones.view(-1, 1))
             loss.backward()
             self.network_optimizer.step()
             self.lr_scheduler.step()
-            self.update_target_network()
             return loss.item()
         return .0
 
     def update_target_network(self) -> None:
         for target_param, param in zip(self.target_network.parameters(),
                                        self.network.parameters()):
-            target_param.data.copy_(self.tau * param + (1. - self.tau) * \
-                target_param)
+            target_param.data.copy_(self.tau * param + (1. - self.tau) *
+                                    target_param)
 
     def save(self, path_model1: str, path_model2: str) -> None:
         with open(path_model1, "wb") as f:
