@@ -4,11 +4,11 @@ from Connect4 import Connect4
 
 if __name__ == "__main__":
     env = Connect4()
-    agent1 = Agent((6, 7), 7, 100000, 3000, .001, .99, .1, 0.01)
-    agent2 = Agent((6, 7), 7, 100000, 3000, .001, .99, .1, 0.01)
+    agent1 = Agent((6, 7), 7, 100000, 128, .0025, .99, 1.0, 0.05, 100000, 0.01)
+    agent2 = Agent((6, 7), 7, 100000, 128, .0025, .99, 1.0, 0.05, 100000, 0.01)
     episodes = 5000000
     iteration_to_save = 500
-    iteration_to_log_game = 500
+    iteration_to_log_game = 1000
 
     for episode in range(episodes):
         agent1_total_loss = 0.
@@ -53,6 +53,8 @@ if __name__ == "__main__":
                                                done)
             state_agent2 = next_state_agent2
             action_agent2 = agent2.choose_action(state_agent2, env.mask)
+        agent1.decay_epsilon()
+        agent2.decay_epsilon()
         if (episode + 1) % iteration_to_save == 0:
             print("Checkpoint")
             agent1.save("connect4-cnn-agent1-model1.pt", "connect4-cnn-agent1-model2.pt")

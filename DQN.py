@@ -1,7 +1,6 @@
-from torch.optim.lr_scheduler import PolynomialLR
-from models import CNNStateActionValueNetwork
+from models import DuelingNoisyQNetwork
+from torch.optim import RMSprop
 from typing import Tuple, Dict
-from torch.optim import SGD
 import numpy as np
 import torch
 
@@ -47,19 +46,23 @@ class ReplayBuffer:
 class Agent:
     def __init__(self, state_shape: Tuple[int, int], n_actions: int,
                  buffer_size: int, batch_size: int, alpha: float, gamma: float,
-                 epsilon: float, tau: float) -> None:
+                 max_epsilon: float, min_epsilon: float, epsilon_step: int,
+                 tau: float) -> None:
         assert 0. < alpha < 1.
         assert 0. < gamma < 1.
-        assert 0. <= epsilon <= 1.
+        assert 0. <= max_epsilon <= 1.
+        assert 0. <= min_epsilon <= 1.
         assert 0. < tau < 1.
-        self.network = CNNStateActionValueNetwork(n_actions)
-        self.target_network = CNNStateActionValueNetwork(n_actions)
+        assert 0 < epsilon_step
+        self.network = DuelingNoisyQNetwork(n_actions)
+        self.target_network = DuelingNoisyQNetwork(n_actions)
         self.target_network.load_state_dict(self.network.state_dict())
-        self.network_optimizer = SGD(self.network.parameters(), alpha)
+        self.network_optimizer = RMSprop(self.network.parameters(), alpha)
         self.replay_buffer = ReplayBuffer(buffer_size, batch_size, state_shape)
-        self.lr_scheduler = PolynomialLR(self.network_optimizer, 100000, 2.)
         self.gamma = gamma
-        self.epsilon = epsilon
+        self.epsilon = max_epsilon
+        self.min_epsilon = min_epsilon
+        self.epsilon_decay_rate = (max_epsilon - min_epsilon) / epsilon_step
         self.tau = tau
 
     def choose_action(self, state: np.ndarray, action_mask: np.ndarray):
@@ -90,13 +93,21 @@ class Agent:
                 1, actions.unsqueeze(0).T)
             loss = torch.nn.functional.mse_loss(
                 states_action_values, rewards.view(-1, 1) + self.gamma *
-                self.target_network(next_states).max(1)[0].view(-1, 1).detach()
+                self.target_network(next_states).gather(
+                    1, self.network(next_states).argmax(1).unsqueeze(0).T
+                ).detach()
                 * ~is_dones.view(-1, 1))
             loss.backward()
             self.network_optimizer.step()
-            self.lr_scheduler.step()
+            self.network.reset_noise()
+            self.target_network.reset_noise()
+            self.update_target_network()
             return loss.item()
         return .0
+
+    def decay_epsilon(self) -> None:
+        self.epsilon = max(self.epsilon - self.epsilon_decay_rate,
+                           self.min_epsilon)
 
     def update_target_network(self) -> None:
         for target_param, param in zip(self.target_network.parameters(),

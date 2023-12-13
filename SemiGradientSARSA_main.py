@@ -4,9 +4,9 @@ from Connect4 import Connect4
 
 if __name__ == "__main__":
     env = Connect4()
-    agent1 = Agent(.005, .99, .05, 7)
+    agent1 = Agent(.01, .99, .05, 7)
     agent1.load(r"connect4-agent1.pt")
-    agent2 = Agent(.005, .99, .05, 7)
+    agent2 = Agent(.01, .99, .05, 7)
     agent2.load(r"connect4-agent2.pt")
     episodes = 50000000
     iteration_to_save = 5000
