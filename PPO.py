@@ -25,14 +25,32 @@ class ReplayBuffer:
         self.reward_memory.append(reward)
         self.is_done_memory.append(is_done)
 
-    def get_data(self) -> Tuple[np.ndarray, np.ndarray, np.ndarray,
-                                np.ndarray, np.ndarray, np.ndarray]:
-        return np.array(self.state_memory, dtype=np.float32), \
-            np.array(self.state_value_memory, dtype=np.float32), \
-            np.array(self.action_memory, dtype=np.int64), \
-            np.array(self.action_prob_memory, dtype=np.float32), \
-            np.array(self.reward_memory, dtype=np.float32), \
-            np.array(self.is_done_memory, dtype=np.bool_)
+    def get_data(self, gamma: float, lambda_: float) -> Tuple[
+            torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+        states = torch.from_numpy(
+            np.array(self.state_memory, dtype=np.float32)).unsqueeze(1)
+        states_value = torch.from_numpy(
+            np.array(self.state_value_memory, dtype=np.float32)).view(-1, 1)
+        actions = torch.from_numpy(
+            np.array(self.action_memory, dtype=np.int64)).view(-1, 1)
+        actions_log_prob = torch.from_numpy(
+            np.array(self.action_prob_memory, dtype=np.float32)
+        ).view(-1, 1).log()
+        is_dones = torch.from_numpy(
+            np.array(self.is_done_memory, dtype=np.bool_)).view(-1, 1)
+
+        n = len(self)
+        advantages = torch.empty((n, 1), dtype=torch.float32)
+
+        accumulate_gae = 0.
+        for i in range(n - 1, -1, -1):
+            next_state_value = 0. if (i == n - 1) else states_value[i + 1][0]
+            accumulate_gae += gamma * lambda_ * (
+                self.reward_memory[i] + gamma * next_state_value * (
+                    is_dones[i][0] * 1.) - states_value[i])
+            advantages[i][0] = accumulate_gae
+
+        return states, actions, actions_log_prob, advantages
 
     def generate_batches(self) -> List[np.ndarray]:
         n = len(self.state_memory)
@@ -90,41 +108,24 @@ class Agent:
             state_value.item()
 
     def update(self) -> Tuple[float, float]:
-        states, states_value, actions, actions_prob, rewards, is_dones = \
-            self.memory.get_data()
-        n = len(self.memory)
-        advantages = torch.empty((n, 1), dtype=torch.float32)
-
-        accumulate_gae = 0.
-        for i in range(n - 1, -1, -1):
-            next_state_value = 0. if (i == n - 1) else states_value[i + 1]
-            accumulate_gae += self.gamma * self.lambda_ * \
-                (rewards[i] + self.gamma * next_state_value *
-                 (is_dones[i] * 1.) - states_value[i])
-            advantages[i][0] = accumulate_gae
-
-        tensor_states = torch.from_numpy(np.array(states, dtype=np.float32)
-                                         ).unsqueeze(1)
-        tensor_actions = torch.from_numpy(np.array(actions, dtype=np.int64)
-                                          ).view(-1, 1)
-        tensor_actions_log_prob = torch.from_numpy(np.array(
-            actions_prob, dtype=np.float32)).view(-1, 1).log()
+        states, actions, actions_log_prob, advantages = self.memory.get_data(
+            self.gamma, self.lambda_)
 
         actor_total_loss = 0.
         critic_total_loss = 0.
-        for i in range(self.n_epochs):
-            if (tensor_actions_log_prob.exp() * (self.actor_network(
-                    tensor_states).gather(1, tensor_actions).log() -
-                    tensor_actions_log_prob)).mean() > self.target_kl:
+        for _ in range(self.n_epochs):
+            if (actions_log_prob.exp() * (self.actor_network(
+                    states).gather(1, actions).log() -
+                    actions_log_prob)).mean() > self.target_kl:
                 break
             for batch_index in self.memory.generate_batches():
                 new_actions_log_prob = self.actor_network(
-                    tensor_states[batch_index]).gather(
-                    1, tensor_actions[batch_index]).log()
+                    states[batch_index]).gather(
+                    1, actions[batch_index]).log()
                 new_states_value = self.critic_netowrk(
-                    tensor_states[batch_index])
+                    states[batch_index])
                 prob_ratios = (new_actions_log_prob -
-                               tensor_actions_log_prob[batch_index]).exp()
+                               actions_log_prob[batch_index]).exp()
                 surr_loss = prob_ratios * advantages[batch_index]
                 clipped_surr_loss = torch.clamp(
                     prob_ratios, self.lower_epsilon, self.upper_epsilon) * \
