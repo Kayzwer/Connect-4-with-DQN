@@ -111,7 +111,7 @@ class Agent:
             actions_prob, dtype=np.float32)).view(-1, 1).log()
 
         actor_total_loss = 0.
-        value_total_loss = 0.
+        critic_total_loss = 0.
         for i in range(self.n_epochs):
             if (tensor_actions_log_prob.exp() * (self.actor_network(
                     tensor_states).gather(1, tensor_actions).log() -
@@ -130,19 +130,19 @@ class Agent:
                     prob_ratios, self.lower_epsilon, self.upper_epsilon) * \
                     advantages[batch_index]
                 actor_loss = -torch.min(surr_loss, clipped_surr_loss).mean()
-                value_loss = torch.nn.functional.mse_loss(
+                critic_loss = torch.nn.functional.mse_loss(
                     new_states_value, advantages[batch_index])
                 self.actor_network_optimizer.zero_grad()
-                self.critic_netowrk_optimizer.zero_grad()
-                loss = actor_loss + .5 * value_loss
-                loss.backward()
+                actor_loss.backward()
                 self.actor_network_optimizer.step()
+                self.critic_netowrk_optimizer.zero_grad()
+                critic_loss.backward()
                 self.critic_netowrk_optimizer.step()
                 actor_total_loss += actor_loss.item()
-                value_total_loss += value_loss.item()
+                critic_total_loss += critic_loss.item()
 
         self.memory.clear()
-        return actor_total_loss, value_total_loss
+        return actor_total_loss, critic_total_loss
 
     def save(self, actor_path: str, critic_path: str) -> None:
         with open(actor_path, "wb") as f1, open(critic_path, "wb") as f2:
