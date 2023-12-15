@@ -47,8 +47,8 @@ if __name__ == "__main__":
                 break
 
             state_agent2 = next_state_agent2
-            action_agent2, action_prob_agent2, state_value_agent2 = agent2.choose_action(
-                state_agent2, env.mask)
+            action_agent2, action_prob_agent2, state_value_agent2 = \
+                agent2.choose_action(state_agent2, env.mask)
 
         agent1_actor_loss, agent1_critic_loss = agent1.update()
         agent2_actor_loss, agent2_critic_loss = agent2.update()
