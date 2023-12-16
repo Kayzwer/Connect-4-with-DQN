@@ -74,7 +74,7 @@ class ReplayBuffer:
 class Agent:
     def __init__(self, actor_alpha: float, critic_alpha: float, batch_size: int,
                  gamma: float, lambda_: float, epsilon: float, target_kl: float,
-                 n_epochs: int) -> None:
+                 n_epochs: int, episode_batch_size: int) -> None:
         assert 0. < actor_alpha < 1.
         assert 0. < critic_alpha < 1.
         assert 0 < batch_size
@@ -89,12 +89,22 @@ class Agent:
         self.critic_netowrk_optimizer = RMSprop(
             self.critic_netowrk.parameters(), critic_alpha)
         self.memory = ReplayBuffer(batch_size)
+        self.memories = [ReplayBuffer(batch_size)
+                         for _ in range(episode_batch_size)]
+        self.batch_size = batch_size
+        self.episode_batch_size = episode_batch_size
         self.gamma = gamma
         self.lambda_ = lambda_
         self.upper_epsilon = 1. + epsilon
         self.lower_epsilon = 1. - epsilon
         self.target_kl = target_kl
         self.n_epochs = n_epochs
+
+    def store(self, episode: int, state: np.ndarray, state_value: float,
+              action: int, action_prob: float, reward: float, is_done: bool
+              ) -> None:
+        self.memories[episode % self.episode_batch_size].store(
+            state, state_value, action, action_prob, reward, is_done)
 
     def choose_action(self, state: np.ndarray, mask: np.ndarray
                       ) -> Tuple[int, float, float]:
@@ -107,9 +117,35 @@ class Agent:
         return selected_action, action_probs[selected_action].item(), \
             state_value.item()
 
-    def update(self) -> Tuple[float, float]:
-        states, actions, actions_log_prob, advantages = self.memory.get_data(
-            self.gamma, self.lambda_)
+    def generate_batches(self, n) -> List[np.ndarray]:
+        indexes = np.arange(n, dtype=np.int64)
+        np.random.shuffle(indexes)
+        return [indexes[i:i + self.batch_size] for i in np.arange(
+            0, n, self.batch_size)]
+
+    def update(self, episode: int) -> Tuple[float, float]:
+        if episode % self.episode_batch_size != self.episode_batch_size - 1:
+            return 0., 0.
+        total_length = 0
+        all_states = []
+        all_actions = []
+        all_actions_log_prob = []
+        all_advantages = []
+
+        for memory in self.memories:
+            states, actions, actions_log_prob, advantages = memory.get_data(
+                self.gamma, self.lambda_)
+            all_states.append(states)
+            all_actions.append(actions)
+            all_actions_log_prob.append(actions_log_prob)
+            all_advantages.append(advantages)
+            total_length += len(memory)
+            memory.clear()
+
+        states = torch.cat(all_states)
+        actions = torch.cat(all_actions)
+        actions_log_prob = torch.cat(all_actions_log_prob)
+        advantages = torch.cat(all_advantages)
 
         actor_total_loss = 0.
         critic_total_loss = 0.
@@ -118,7 +154,7 @@ class Agent:
                     states).gather(1, actions).log() -
                     actions_log_prob)).mean() > self.target_kl:
                 break
-            for batch_index in self.memory.generate_batches():
+            for batch_index in self.generate_batches(total_length):
                 new_actions_log_prob = self.actor_network(
                     states[batch_index]).gather(
                     1, actions[batch_index]).log()
