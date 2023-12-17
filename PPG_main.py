@@ -1,11 +1,13 @@
-from PPO import Agent
+from PPG import Agent
 from Connect4 import Connect4
 
 
 if __name__ == "__main__":
     env = Connect4()
-    agent1 = Agent(.000025, .0001, 16, .99, .97, .2, .05, 0.1, 32, 8)
-    agent2 = Agent(.000025, .0001, 16, .99, .97, .2, .05, 0.1, 32, 8)
+    agent1 = Agent(.000025, .0001, 16, .99, .97, .2, .05, 1., 0.1, 32, 32, 32,
+                   8)
+    agent2 = Agent(.000025, .0001, 16, .99, .97, .2, .05, 1., 0.1, 32, 32, 32,
+                   8)
     episodes = 5000000
     iteration_to_save = 500
     iteration_to_log_game = 5000
