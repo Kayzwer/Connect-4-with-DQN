@@ -40,7 +40,8 @@ class ReplayBuffer:
                                             ))
         is_dones = torch.from_numpy(
             np.array(self.is_done_memory, dtype=np.bool_)).view(-1, 1)
-        rewards = (rewards - rewards.mean()) / (rewards.std() + 1e-6)
+        rewards = (rewards - rewards.mean()) / torch.max(rewards.std(),
+                                                         torch.tensor(1e-8))
 
         n = len(self)
         advantages = torch.empty((n, 1), dtype=torch.float32)
