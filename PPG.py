@@ -81,10 +81,10 @@ class Agent:
         assert 0. < critic_alpha < 1.
         assert 0 < batch_size
         assert 0. < gamma < 1.
-        assert 0. < lambda_ < 1.
+        assert 0. <= lambda_ <= 1.
         assert 0. < epsilon < 1.
         assert 0. < target_kl < 1.
-        assert 0. < entropy_weight < 1.
+        assert 0. <= entropy_weight <= 1.
         assert 0. <= beta_clone <= 1.
         self.actor_network = ActorNetwork()
         self.actor_network_optimizer = RMSprop(
