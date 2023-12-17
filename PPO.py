@@ -74,7 +74,8 @@ class ReplayBuffer:
 class Agent:
     def __init__(self, actor_alpha: float, critic_alpha: float, batch_size: int,
                  gamma: float, lambda_: float, epsilon: float, target_kl: float,
-                 n_epochs: int, episode_batch_size: int) -> None:
+                 entropy_weight: float, n_epochs: int, episode_batch_size: int
+                 ) -> None:
         assert 0. < actor_alpha < 1.
         assert 0. < critic_alpha < 1.
         assert 0 < batch_size
@@ -82,6 +83,7 @@ class Agent:
         assert 0. < lambda_ < 1.
         assert 0. < epsilon < 1.
         assert 0. < target_kl < 1.
+        assert 0. < entropy_weight < 1.
         self.actor_network = ActorNetwork()
         self.actor_network_optimizer = RMSprop(
             self.actor_network.parameters(), actor_alpha)
@@ -98,6 +100,8 @@ class Agent:
         self.upper_epsilon = 1. + epsilon
         self.lower_epsilon = 1. - epsilon
         self.target_kl = target_kl
+        self.entropy_multiplier = entropy_weight * torch.tensor(
+            1 / 7, dtype=torch.float32).log()
         self.n_epochs = n_epochs
 
     def store(self, episode: int, state: np.ndarray, state_value: float,
@@ -117,7 +121,7 @@ class Agent:
         return selected_action, action_probs[selected_action].item(), \
             state_value.item()
 
-    def generate_batches(self, n) -> List[np.ndarray]:
+    def generate_batches(self, n: int) -> List[np.ndarray]:
         indexes = np.arange(n, dtype=np.int64)
         np.random.shuffle(indexes)
         return [indexes[i:i + self.batch_size] for i in np.arange(
@@ -160,13 +164,16 @@ class Agent:
                     1, actions[batch_index]).log()
                 new_states_value = self.critic_netowrk(
                     states[batch_index])
+                action_distributions = Categorical(new_actions_log_prob)
                 prob_ratios = (new_actions_log_prob -
                                actions_log_prob[batch_index]).exp()
                 surr_loss = prob_ratios * advantages[batch_index]
                 clipped_surr_loss = torch.clamp(
                     prob_ratios, self.lower_epsilon, self.upper_epsilon) * \
                     advantages[batch_index]
-                actor_loss = -torch.min(surr_loss, clipped_surr_loss).mean()
+                actor_loss = -(torch.min(surr_loss, clipped_surr_loss) +
+                               self.entropy_multiplier *
+                               action_distributions.entropy()).mean()
                 critic_loss = torch.nn.functional.mse_loss(
                     new_states_value, advantages[batch_index])
                 self.actor_network_optimizer.zero_grad()
