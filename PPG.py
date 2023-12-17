@@ -36,8 +36,11 @@ class ReplayBuffer:
         actions_log_prob = torch.from_numpy(
             np.array(self.action_prob_memory, dtype=np.float32)
         ).view(-1, 1).log()
+        rewards = torch.from_numpy(np.array(self.reward_memory, dtype=np.float32
+                                            ))
         is_dones = torch.from_numpy(
             np.array(self.is_done_memory, dtype=np.bool_)).view(-1, 1)
+        rewards = (rewards - rewards.mean()) / (rewards.std() + 1e-6)
 
         n = len(self)
         advantages = torch.empty((n, 1), dtype=torch.float32)
@@ -46,7 +49,7 @@ class ReplayBuffer:
         for i in range(n - 1, -1, -1):
             next_state_value = 0. if (i == n - 1) else states_value[i + 1][0]
             accumulate_gae += gamma * lambda_ * (
-                self.reward_memory[i] + gamma * next_state_value * (
+                rewards[i] + gamma * next_state_value * (
                     is_dones[i][0] * 1.) - states_value[i])
             advantages[i][0] = accumulate_gae
 
