@@ -92,7 +92,6 @@ class Agent:
         self.critic_network = CriticNetwork()
         self.critic_network_optimizer = RMSprop(
             self.critic_network.parameters(), critic_alpha)
-        self.memory = ReplayBuffer(batch_size)
         self.memories = [ReplayBuffer(batch_size)
                          for _ in range(episode_batch_size)]
         self.batch_size = batch_size
@@ -210,7 +209,6 @@ class Agent:
             critic_loss.backward()
             self.critic_network_optimizer.step()
 
-        self.memory.clear()
         return actor_total_loss, critic_total_loss
 
     def save(self, actor_path: str, critic_path: str) -> None:
