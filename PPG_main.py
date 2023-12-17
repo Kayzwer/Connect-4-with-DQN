@@ -50,8 +50,10 @@ if __name__ == "__main__":
             action_agent2, action_prob_agent2, state_value_agent2 = \
                 agent2.choose_action(state_agent2, env.mask)
 
-        agent1_actor_loss, agent1_critic_loss = agent1.update(episode)
-        agent2_actor_loss, agent2_critic_loss = agent2.update(episode)
+        agent1_actor_loss, agent1_critic_loss, agent1_joint_loss = \
+            agent1.update(episode)
+        agent2_actor_loss, agent2_critic_loss, agent2_joint_loss = \
+            agent2.update(episode)
         if (episode + 1) % iteration_to_save == 0:
             print("Checkpoint")
             agent1.save("connect4-cnn-actor-network-agent1.pt",
@@ -66,6 +68,8 @@ if __name__ == "__main__":
         env.save_game_state_log(f"./game_state_log/game_{episode + 1}.txt")
         print(f"Episode: {episode + 1}, Winner: {winner}, Agent1 Actor Loss: "
               f"{agent1_actor_loss:.3f}, Agent1 Critic Loss: "
+              f"{agent1_joint_loss:.3f}, Agent1 Joint Loss: "
               f"{agent1_critic_loss:.3f}, Agent2 Actor Loss: "
               f"{agent2_actor_loss:.3f}, Agent2 Critic Loss: "
-              f"{agent2_critic_loss:.3f}")
+              f"{agent2_critic_loss:.3f}, Agent2 Joint Loss: "
+              f"{agent2_joint_loss:.3f}")

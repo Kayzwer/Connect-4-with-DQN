@@ -131,9 +131,9 @@ class Agent:
         return [indexes[i:i + self.batch_size] for i in np.arange(
             0, n, self.batch_size)]
 
-    def update(self, episode: int) -> Tuple[float, float]:
+    def update(self, episode: int) -> Tuple[float, float, float]:
         if episode % self.episode_batch_size != self.episode_batch_size - 1:
-            return 0., 0.
+            return 0., 0., 0.
         total_length = 0
         all_states = []
         all_actions = []
@@ -157,6 +157,7 @@ class Agent:
 
         actor_total_loss = 0.
         critic_total_loss = 0.
+        joint_total_loss = 0.
         for _ in range(self.n_actor_epochs):
             if (actions_log_prob.exp() * (self.actor_network.forward_actor(
                     states).gather(1, actions).log() -
@@ -202,14 +203,16 @@ class Agent:
             self.actor_network_optimizer.zero_grad()
             joint_loss.backward()
             self.actor_network_optimizer.step()
+            joint_total_loss += joint_loss.item()
 
             critic_loss = torch.nn.functional.mse_loss(self.critic_network(
                 states), advantages)
             self.critic_network_optimizer.zero_grad()
             critic_loss.backward()
             self.critic_network_optimizer.step()
+            critic_total_loss += critic_loss.item()
 
-        return actor_total_loss, critic_total_loss
+        return actor_total_loss, critic_total_loss, joint_total_loss
 
     def save(self, actor_path: str, critic_path: str) -> None:
         with open(actor_path, "wb") as f1, open(critic_path, "wb") as f2:
