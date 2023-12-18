@@ -54,6 +54,11 @@ if __name__ == "__main__":
             agent1.update(episode)
         agent2_actor_loss, agent2_critic_loss, agent2_joint_loss = \
             agent2.update(episode)
+        winner = "Draw"
+        if env.winner == 1.:
+            winner = "Agent1"
+        elif env.winner == -1.:
+            winner = "Agent2"
         if (episode + 1) % 16 == 0:
             print(f"Episode: {episode + 1}, Winner: {winner}, Agent1 Actor Loss: "
                   f"{agent1_actor_loss:.3f}, Agent1 Critic Loss: "
@@ -68,9 +73,4 @@ if __name__ == "__main__":
                         "connect4-cnn-critic-network-agent1.pt")
             agent2.save("connect4-cnn-actor-network-agent2.pt",
                         "connect4-cnn-critic-network-agent2.pt")
-        winner = "Draw"
-        if env.winner == 1.:
-            winner = "Agent1"
-        elif env.winner == -1.:
-            winner = "Agent2"
         env.save_game_state_log(f"./game_state_log/game_{episode + 1}.txt")
