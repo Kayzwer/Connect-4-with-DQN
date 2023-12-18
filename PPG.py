@@ -209,7 +209,7 @@ class Agent:
             self.actor_network_optimizer.zero_grad()
             joint_loss.backward()
             torch.nn.utils.clip_grad.clip_grad_norm_(
-                    self.actor_network.parameters(), 1.)
+                self.actor_network.parameters(), 1.)
             self.actor_network_optimizer.step()
             joint_total_loss += joint_loss.item()
 
