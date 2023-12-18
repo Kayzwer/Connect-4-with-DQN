@@ -89,7 +89,7 @@ class Agent:
         assert 0. < epsilon < 1.
         assert 0. < target_kl < 1.
         assert 0. <= entropy_weight <= 1.
-        assert 0. <= beta_clone <= 1.
+        assert 0. <= beta_clone
         self.actor_network = ActorNetwork()
         self.actor_network_optimizer = RMSprop(
             self.actor_network.parameters(), actor_alpha)
@@ -183,6 +183,8 @@ class Agent:
                                action_distributions.entropy()).mean()
                 self.actor_network_optimizer.zero_grad()
                 actor_loss.backward()
+                torch.nn.utils.clip_grad.clip_grad_norm_(
+                    self.actor_network.parameters(), 1.)
                 self.actor_network_optimizer.step()
                 actor_total_loss += actor_loss.item()
 
@@ -206,6 +208,8 @@ class Agent:
                     states), old_actions_prob, reduction='batchmean')
             self.actor_network_optimizer.zero_grad()
             joint_loss.backward()
+            torch.nn.utils.clip_grad.clip_grad_norm_(
+                    self.actor_network.parameters(), 1.)
             self.actor_network_optimizer.step()
             joint_total_loss += joint_loss.item()
 

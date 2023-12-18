@@ -4,13 +4,13 @@ from Connect4 import Connect4
 
 if __name__ == "__main__":
     env = Connect4()
-    agent1 = Agent(.000025, .0001, 16, .99, .97, .2, .05, .01, 1., 32, 32, 32,
-                   8)
-    agent2 = Agent(.000025, .0001, 16, .99, .97, .2, .05, .01, 1., 32, 32, 32,
-                   8)
+    agent1 = Agent(.0000015, .0000025, 16, .99, .97, .15, .01, .01, 1.5, 4, 4,
+                   4, 16)
+    agent2 = Agent(.0000015, .0000025, 16, .99, .97, .15, .01, .01, 1.5, 4, 4,
+                   4, 16)
     episodes = 5000000
     iteration_to_save = 500
-    iteration_to_log_game = 5000
+    iteration_to_log_game = 1000
 
     for episode in range(episodes):
         done = False
@@ -54,6 +54,14 @@ if __name__ == "__main__":
             agent1.update(episode)
         agent2_actor_loss, agent2_critic_loss, agent2_joint_loss = \
             agent2.update(episode)
+        if (episode + 1) % 16 == 0:
+            print(f"Episode: {episode + 1}, Winner: {winner}, Agent1 Actor Loss: "
+                  f"{agent1_actor_loss:.3f}, Agent1 Critic Loss: "
+                  f"{agent1_joint_loss:.3f}, Agent1 Joint Loss: "
+                  f"{agent1_critic_loss:.3f}, Agent2 Actor Loss: "
+                  f"{agent2_actor_loss:.3f}, Agent2 Critic Loss: "
+                  f"{agent2_critic_loss:.3f}, Agent2 Joint Loss: "
+                  f"{agent2_joint_loss:.3f}")
         if (episode + 1) % iteration_to_save == 0:
             print("Checkpoint")
             agent1.save("connect4-cnn-actor-network-agent1.pt",
@@ -66,10 +74,3 @@ if __name__ == "__main__":
         elif env.winner == -1.:
             winner = "Agent2"
         env.save_game_state_log(f"./game_state_log/game_{episode + 1}.txt")
-        print(f"Episode: {episode + 1}, Winner: {winner}, Agent1 Actor Loss: "
-              f"{agent1_actor_loss:.3f}, Agent1 Critic Loss: "
-              f"{agent1_joint_loss:.3f}, Agent1 Joint Loss: "
-              f"{agent1_critic_loss:.3f}, Agent2 Actor Loss: "
-              f"{agent2_actor_loss:.3f}, Agent2 Critic Loss: "
-              f"{agent2_critic_loss:.3f}, Agent2 Joint Loss: "
-              f"{agent2_joint_loss:.3f}")
