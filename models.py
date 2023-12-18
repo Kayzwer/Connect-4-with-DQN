@@ -212,7 +212,7 @@ class ActorNetwork(nn.Module):
         torch.nn.init.zeros_(self.critic_layers[-1].bias)
 
     def forward_actor(self, x: torch.Tensor) -> torch.Tensor:
-        return self.actor_layer(self.feature_layers(x))
+        return self.actor_layers(self.feature_layers(x))
 
     def forward_critic(self, x: torch.Tensor) -> torch.Tensor:
         return self.critic_layers(self.feature_layers(x))
