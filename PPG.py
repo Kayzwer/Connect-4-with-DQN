@@ -168,11 +168,11 @@ class Agent:
                     actions_log_prob)).mean() > self.target_kl:
                 break
             for batch_index in self.generate_batches(total_length):
-                new_actions_log_prob = self.actor_network.forward_actor(
+                new_actions_prob = self.actor_network.forward_actor(
                     states[batch_index]).gather(
-                    1, actions[batch_index]).log()
-                action_distributions = Categorical(new_actions_log_prob)
-                prob_ratios = (new_actions_log_prob -
+                    1, actions[batch_index])
+                action_distributions = Categorical(new_actions_prob)
+                prob_ratios = (new_actions_prob.log() -
                                actions_log_prob[batch_index]).exp()
                 surr_loss = prob_ratios * advantages[batch_index]
                 clipped_surr_loss = torch.clamp(
