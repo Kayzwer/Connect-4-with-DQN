@@ -203,9 +203,8 @@ class Agent:
         for _ in range(self.n_auxiliary_epochs):
             auxiliary_loss = torch.nn.functional.mse_loss(
                 self.actor_network.forward_critic(states), advantages)
-            joint_loss = auxiliary_loss + self.beta_clone * \
-                torch.nn.functional.kl_div(self.actor_network.forward_actor(
-                    states), old_actions_prob, reduction='batchmean')
+            joint_loss = auxiliary_loss + self.beta_clone * self.kl_divergence(
+                old_actions_prob, self.actor_network.forward_actor(states))
             self.actor_network_optimizer.zero_grad()
             joint_loss.backward()
             torch.nn.utils.clip_grad.clip_grad_norm_(
@@ -221,6 +220,10 @@ class Agent:
             critic_total_loss += critic_loss.item()
 
         return actor_total_loss, critic_total_loss, joint_total_loss
+
+    def kl_divergence(self, old_actions_prob, new_actions_prob) -> torch.Tensor:
+        return (old_actions_prob * (old_actions_prob / new_actions_prob).log()
+                ).sum(dim=1).mean()
 
     def save(self, actor_path: str, critic_path: str) -> None:
         with open(actor_path, "wb") as f1, open(critic_path, "wb") as f2:
