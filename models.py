@@ -170,6 +170,40 @@ class ActorCriticNetwork(nn.Module):
         return self.critic_layers(self.feature_layers(x))
 
 
+class PureActorNetwork(nn.Module):
+    def __init__(self) -> None:
+        super().__init__()
+        self.feature_layers = nn.Sequential(
+            nn.Conv2d(1, 64, 4),
+            nn.ReLU(),
+            nn.Conv2d(64, 64, 2),
+            nn.Flatten(1),
+            nn.ReLU(),
+            nn.Linear(384, 256),
+            nn.ReLU(),
+            nn.Linear(256, 128),
+            nn.ReLU(),
+            nn.Linear(128, 64),
+            nn.ReLU()
+        )
+
+        self.actor_layers = nn.Sequential(
+            nn.Linear(64, 7),
+            nn.Softmax(dim=1)
+        )
+
+        for layer in self.feature_layers:
+            if isinstance(layer, (nn.Linear, nn.Conv2d)):
+                torch.nn.init.kaiming_normal_(layer.weight)
+                torch.nn.init.zeros_(layer.bias)
+
+        torch.nn.init.zeros_(self.actor_layers[0].weight)
+        torch.nn.init.zeros_(self.actor_layers[0].bias)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return self.actor_layers(self.feature_layers(x))
+
+
 class ActorNetwork(nn.Module):
     def __init__(self) -> None:
         super().__init__()
