@@ -60,8 +60,8 @@ class Agent:
         self.gamma = gamma
         self.tau = tau
         self.unit_m_tau = 1. - tau
-        self.entropy_weight_multiplier = entropy_weight * \
-            torch.tensor(1 / 7, dtype=torch.float32)
+        self.entropy_weight_multiplier = entropy_weight / \
+            torch.tensor(7, dtype=torch.float32).log()
 
     def choose_action(self, state: np.ndarray, mask: np.ndarray) -> int:
         action_dist = Categorical(
