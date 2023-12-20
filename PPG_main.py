@@ -4,10 +4,8 @@ from Connect4 import Connect4
 
 if __name__ == "__main__":
     env = Connect4()
-    agent1 = Agent(.0000015, .0000025, 16, .99, .97, .15, .01, .01, 1.5, 4, 4,
-                   4, 16)
-    agent2 = Agent(.0000015, .0000025, 16, .99, .97, .15, .01, .01, 1.5, 4, 4,
-                   4, 16)
+    agent1 = Agent(.00005, .0001, .999, .95, .2, .05, .01, 1., 1, 1, 4, 8, 32)
+    agent2 = Agent(.00005, .0001, .999, .95, .2, .05, .01, 1., 1, 1, 4, 8, 32)
     episodes = 5000000
     iteration_to_save = 500
     iteration_to_log_game = 1000
@@ -26,11 +24,11 @@ if __name__ == "__main__":
         while not done:
             next_state_agent1, reward1, reward2, done = env.step(action_agent2,
                                                                  -1.)
-            agent1.store(episode, state_agent1, state_value_agent1,
-                         action_agent1, action_prob_agent1, reward1, done)
+            agent1.store(state_agent1, state_value_agent1, action_agent1,
+                         action_prob_agent1, reward1, done)
             if done:
-                agent2.store(episode, state_agent2, state_value_agent2,
-                             action_agent2, action_prob_agent2, reward2, done)
+                agent2.store(state_agent2, state_value_agent2, action_agent2,
+                             action_prob_agent2, reward2, done)
                 break
 
             state_agent1 = next_state_agent1
@@ -39,11 +37,11 @@ if __name__ == "__main__":
 
             next_state_agent2, reward1, reward2, done = env.step(
                 action_agent1, 1.)
-            agent2.store(episode, state_agent2, state_value_agent2,
-                         action_agent2, action_prob_agent2, reward2, done)
+            agent2.store(state_agent2, state_value_agent2, action_agent2,
+                         action_prob_agent2, reward2, done)
             if done:
-                agent1.store(episode, state_agent1, state_value_agent1,
-                             action_agent1, action_prob_agent1, reward1, done)
+                agent1.store(state_agent1, state_value_agent1, action_agent1,
+                             action_prob_agent1, reward1, done)
                 break
 
             state_agent2 = next_state_agent2

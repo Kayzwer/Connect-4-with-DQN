@@ -7,14 +7,13 @@ from models import ActorNetwork, CriticNetwork
 
 
 class ReplayBuffer:
-    def __init__(self, batch_size: int) -> None:
+    def __init__(self) -> None:
         self.state_memory = []
         self.state_value_memory = []
         self.action_memory = []
         self.action_prob_memory = []
         self.reward_memory = []
         self.is_done_memory = []
-        self.batch_size = batch_size
 
     def store(self, state: np.ndarray, state_value: float, action: int,
               action_prob: float, reward: float, is_done: bool) -> None:
@@ -68,30 +67,42 @@ class ReplayBuffer:
         return len(self.state_value_memory)
 
 
+class Memory:
+    def __init__(self) -> None:
+        self.state_memory = []
+        self.advantage_memory = []
+
+    def get_data(self) -> Tuple[torch.Tensor, torch.Tensor]:
+        return torch.cat(self.state_memory), torch.cat(self.advantage_memory)
+
+    def clear(self) -> None:
+        self.state_memory.clear()
+        self.advantage_memory.clear()
+
+
 class Agent:
-    def __init__(self, actor_alpha: float, critic_alpha: float, batch_size: int,
-                 gamma: float, lambda_: float, epsilon: float, target_kl: float,
+    def __init__(self, actor_alpha: float, critic_alpha: float, gamma: float,
+                 lambda_: float, epsilon: float, target_kl: float,
                  entropy_weight: float, beta_clone: float, n_actor_epochs: int,
                  n_critic_epochs: int, n_auxiliary_epochs: int,
-                 episode_batch_size: int) -> None:
+                 episode_batch_size: int, N_policy: int) -> None:
         assert 0. < actor_alpha < 1.
         assert 0. < critic_alpha < 1.
-        assert 0 < batch_size
         assert 0. < gamma < 1.
         assert 0. <= lambda_ <= 1.
         assert 0. < epsilon < 1.
         assert 0. < target_kl < 1.
         assert 0. <= entropy_weight <= 1.
         assert 0. <= beta_clone
+        assert 0 < N_policy
         self.actor_network = ActorNetwork()
         self.actor_network_optimizer = RMSprop(
             self.actor_network.parameters(), actor_alpha)
         self.critic_network = CriticNetwork()
         self.critic_network_optimizer = RMSprop(
             self.critic_network.parameters(), critic_alpha)
-        self.memories = [ReplayBuffer(batch_size)
-                         for _ in range(episode_batch_size)]
-        self.batch_size = batch_size
+        self.episode_memory = ReplayBuffer()
+        self.memory = Memory()
         self.episode_batch_size = episode_batch_size
         self.gamma = gamma
         self.lambda_ = lambda_
@@ -104,12 +115,12 @@ class Agent:
         self.n_actor_epochs = n_actor_epochs
         self.n_critic_epochs = n_critic_epochs
         self.n_auxiliary_epochs = n_auxiliary_epochs
+        self.N_policy = N_policy
 
-    def store(self, episode: int, state: np.ndarray, state_value: float,
-              action: int, action_prob: float, reward: float, is_done: bool
-              ) -> None:
-        self.memories[episode % self.episode_batch_size].store(
-            state, state_value, action, action_prob, reward, is_done)
+    def store(self, state: np.ndarray, state_value: float, action: int,
+              action_prob: float, reward: float, is_done: bool) -> None:
+        self.episode_memory.store(state, state_value, action, action_prob,
+                                  reward, is_done)
 
     def choose_action(self, state: np.ndarray, mask: np.ndarray
                       ) -> Tuple[int, float, float]:
@@ -125,33 +136,15 @@ class Agent:
     def generate_batches(self, n: int) -> List[np.ndarray]:
         indexes = np.arange(n, dtype=np.int64)
         np.random.shuffle(indexes)
-        return [indexes[i:i + self.batch_size] for i in np.arange(
-            0, n, self.batch_size)]
+        return [indexes[i:i + self.episode_batch_size] for i in np.arange(
+            0, n, self.episode_batch_size)]
 
     def update(self, episode: int) -> Tuple[float, float, float]:
-        if episode % self.episode_batch_size != self.episode_batch_size - 1:
-            return 0., 0., 0.
-        total_length = 0
-        all_states = []
-        all_actions = []
-        all_actions_log_prob = []
-        all_advantages = []
-
-        for memory in self.memories:
-            states, actions, actions_log_prob, advantages = memory.get_data(
-                self.gamma, self.lambda_)
-            all_states.append(states)
-            all_actions.append(actions)
-            all_actions_log_prob.append(actions_log_prob)
-            all_advantages.append(advantages)
-            total_length += len(memory)
-            memory.clear()
-
-        states = torch.cat(all_states)
-        actions = torch.cat(all_actions)
-        actions_log_prob = torch.cat(all_actions_log_prob)
-        advantages = torch.cat(all_advantages)
-
+        states, actions, actions_log_prob, advantages = \
+            self.episode_memory.get_data(self.gamma, self.lambda_)
+        self.memory.state_memory.append(states)
+        self.memory.advantage_memory.append(advantages)
+        n = len(self.episode_memory)
         actor_total_loss = 0.
         critic_total_loss = 0.
         joint_total_loss = 0.
@@ -160,7 +153,7 @@ class Agent:
                     states).gather(1, actions).log() -
                     actions_log_prob)).mean() > self.target_kl:
                 break
-            for batch_index in self.generate_batches(total_length):
+            for batch_index in self.generate_batches(n):
                 new_actions_prob = self.actor_network.forward_actor(
                     states[batch_index]).gather(
                     1, actions[batch_index])
@@ -182,7 +175,7 @@ class Agent:
                 actor_total_loss += actor_loss.item()
 
         for _ in range(self.n_critic_epochs):
-            for batch_index in self.generate_batches(total_length):
+            for batch_index in self.generate_batches(n):
                 new_states_value = self.critic_network(
                     states[batch_index])
                 critic_loss = torch.nn.functional.mse_loss(
@@ -191,27 +184,32 @@ class Agent:
                 critic_loss.backward()
                 self.critic_network_optimizer.step()
                 critic_total_loss += critic_loss.item()
+        self.episode_memory.clear()
 
-        old_actions_prob = self.actor_network.forward_actor(states).detach()
-        for _ in range(self.n_auxiliary_epochs):
-            new_actions_prob, states_value = self.actor_network(states)
-            auxiliary_loss = torch.nn.functional.mse_loss(states_value,
-                                                          advantages)
-            joint_loss = auxiliary_loss + self.beta_clone * self.kl_divergence(
-                old_actions_prob, new_actions_prob)
-            self.actor_network_optimizer.zero_grad()
-            joint_loss.backward()
-            torch.nn.utils.clip_grad.clip_grad_norm_(
-                self.actor_network.parameters(), 1.)
-            self.actor_network_optimizer.step()
-            joint_total_loss += joint_loss.item()
+        if episode % self.N_policy:
+            states, advantages = self.memory.get_data()
+            old_actions_prob = self.actor_network.forward_actor(
+                states).detach()
+            for _ in range(self.n_auxiliary_epochs):
+                new_actions_prob, states_value = self.actor_network(states)
+                auxiliary_loss = torch.nn.functional.mse_loss(states_value,
+                                                              advantages)
+                joint_loss = auxiliary_loss + self.beta_clone * self.kl_divergence(
+                    old_actions_prob, new_actions_prob)
+                self.actor_network_optimizer.zero_grad()
+                joint_loss.backward()
+                torch.nn.utils.clip_grad.clip_grad_norm_(
+                    self.actor_network.parameters(), 1.)
+                self.actor_network_optimizer.step()
+                joint_total_loss += joint_loss.item()
 
-            critic_loss = torch.nn.functional.mse_loss(self.critic_network(
-                states), advantages)
-            self.critic_network_optimizer.zero_grad()
-            critic_loss.backward()
-            self.critic_network_optimizer.step()
-            critic_total_loss += critic_loss.item()
+                critic_loss = torch.nn.functional.mse_loss(self.critic_network(
+                    states), advantages)
+                self.critic_network_optimizer.zero_grad()
+                critic_loss.backward()
+                self.critic_network_optimizer.step()
+                critic_total_loss += critic_loss.item()
+            self.memory.clear()
 
         return actor_total_loss, critic_total_loss, joint_total_loss
 
