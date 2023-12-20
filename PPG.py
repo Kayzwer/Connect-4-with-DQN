@@ -194,10 +194,11 @@ class Agent:
 
         old_actions_prob = self.actor_network.forward_actor(states).detach()
         for _ in range(self.n_auxiliary_epochs):
-            auxiliary_loss = torch.nn.functional.mse_loss(
-                self.actor_network.forward_critic(states), advantages)
+            new_actions_prob, states_value = self.actor_network(states)
+            auxiliary_loss = torch.nn.functional.mse_loss(states_value,
+                                                          advantages)
             joint_loss = auxiliary_loss + self.beta_clone * self.kl_divergence(
-                old_actions_prob, self.actor_network.forward_actor(states))
+                old_actions_prob, new_actions_prob)
             self.actor_network_optimizer.zero_grad()
             joint_loss.backward()
             torch.nn.utils.clip_grad.clip_grad_norm_(

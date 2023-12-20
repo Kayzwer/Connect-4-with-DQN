@@ -251,6 +251,10 @@ class ActorNetwork(nn.Module):
     def forward_critic(self, x: torch.Tensor) -> torch.Tensor:
         return self.critic_layers(self.feature_layers(x))
 
+    def forward(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+        feature = self.feature_layers(x)
+        return self.actor_layers(feature), self.critic_layers(feature)
+
 
 class CriticNetwork(nn.Module):
     def __init__(self) -> None:
