@@ -57,14 +57,13 @@ if __name__ == "__main__":
             winner = "Agent1"
         elif env.winner == -1.:
             winner = "Agent2"
-        if (episode + 1) % 16 == 0:
-            print(f"Episode: {episode + 1}, Winner: {winner}, Agent1 Actor Loss"
-                  f": {agent1_actor_loss:.3f}, Agent1 Critic Loss: "
-                  f"{agent1_critic_loss:.3f}, Agent1 Joint Loss: "
-                  f"{agent1_joint_loss:.3f}, Agent2 Actor Loss: "
-                  f"{agent2_actor_loss:.3f}, Agent2 Critic Loss: "
-                  f"{agent2_critic_loss:.3f}, Agent2 Joint Loss: "
-                  f"{agent2_joint_loss:.3f}")
+        print(f"Episode: {episode + 1}, Winner: {winner}, Agent1 Actor Loss: "
+              f"{agent1_actor_loss:.3f}, Agent1 Critic Loss: "
+              f"{agent1_critic_loss:.3f}, Agent1 Joint Loss: "
+              f"{agent1_joint_loss:.3f}, Agent2 Actor Loss: "
+              f"{agent2_actor_loss:.3f}, Agent2 Critic Loss: "
+              f"{agent2_critic_loss:.3f}, Agent2 Joint Loss: "
+              f"{agent2_joint_loss:.3f}")
         if (episode + 1) % iteration_to_save == 0:
             print("Checkpoint")
             agent1.save("connect4-cnn-actor-network-agent1.pt",
