@@ -58,8 +58,8 @@ if __name__ == "__main__":
         elif env.winner == -1.:
             winner = "Agent2"
         if (episode + 1) % 16 == 0:
-            print(f"Episode: {episode + 1}, Winner: {winner}, Agent1 Actor Loss: "
-                  f"{agent1_actor_loss:.3f}, Agent1 Critic Loss: "
+            print(f"Episode: {episode + 1}, Winner: {winner}, Agent1 Actor Loss"
+                  f": {agent1_actor_loss:.3f}, Agent1 Critic Loss: "
                   f"{agent1_critic_loss:.3f}, Agent1 Joint Loss: "
                   f"{agent1_joint_loss:.3f}, Agent2 Actor Loss: "
                   f"{agent2_actor_loss:.3f}, Agent2 Critic Loss: "
