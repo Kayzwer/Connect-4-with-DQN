@@ -56,13 +56,6 @@ class ReplayBuffer:
 
         return states, actions, actions_log_prob, advantages
 
-    def generate_batches(self) -> List[np.ndarray]:
-        n = len(self.state_memory)
-        indexes = np.arange(n, dtype=np.int64)
-        np.random.shuffle(indexes)
-        return [indexes[i:i + self.batch_size] for i in
-                np.arange(0, n, self.batch_size)]
-
     def clear(self) -> None:
         self.state_memory.clear()
         self.state_value_memory.clear()
