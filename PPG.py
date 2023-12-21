@@ -71,9 +71,18 @@ class Memory:
     def __init__(self) -> None:
         self.state_memory = []
         self.advantage_memory = []
+        self.size = 0
+
+    def store(self, states: torch.Tensor, advantages: torch.Tensor) -> None:
+        self.state_memory.append(states)
+        self.advantage_memory.append(advantages)
+        self.size += len(states)
 
     def get_data(self) -> Tuple[torch.Tensor, torch.Tensor]:
         return torch.cat(self.state_memory), torch.cat(self.advantage_memory)
+
+    def __len__(self) -> int:
+        return self.size
 
     def clear(self) -> None:
         self.state_memory.clear()
@@ -85,7 +94,8 @@ class Agent:
                  lambda_: float, epsilon: float, target_kl: float,
                  entropy_weight: float, beta_clone: float, n_actor_epochs: int,
                  n_critic_epochs: int, n_auxiliary_epochs: int,
-                 episode_batch_size: int, N_policy: int) -> None:
+                 episode_batch_size: int, N_policy: int,
+                 auxiliary_batch_size: int) -> None:
         assert 0. < actor_alpha < 1.
         assert 0. < critic_alpha < 1.
         assert 0. < gamma < 1.
@@ -116,6 +126,7 @@ class Agent:
         self.n_critic_epochs = n_critic_epochs
         self.n_auxiliary_epochs = n_auxiliary_epochs
         self.N_policy = N_policy
+        self.auxiliary_batch_size = auxiliary_batch_size
 
     def store(self, state: np.ndarray, state_value: float, action: int,
               action_prob: float, reward: float, is_done: bool) -> None:
@@ -133,17 +144,15 @@ class Agent:
         return selected_action, action_probs[selected_action].item(), \
             state_value.item()
 
-    def generate_batches(self, n: int) -> List[np.ndarray]:
+    def generate_batches(self, n: int, batch_size: int) -> List[np.ndarray]:
         indexes = np.arange(n, dtype=np.int64)
         np.random.shuffle(indexes)
-        return [indexes[i:i + self.episode_batch_size] for i in np.arange(
-            0, n, self.episode_batch_size)]
+        return [indexes[i:i + batch_size] for i in np.arange(0, n, batch_size)]
 
     def update(self, episode: int) -> Tuple[float, float, float]:
         states, actions, actions_log_prob, advantages = \
             self.episode_memory.get_data(self.gamma, self.lambda_)
-        self.memory.state_memory.append(states)
-        self.memory.advantage_memory.append(advantages)
+        self.memory.store(states, advantages)
         n = len(self.episode_memory)
         actor_total_loss = 0.
         critic_total_loss = 0.
@@ -153,7 +162,8 @@ class Agent:
                     states).gather(1, actions).log() -
                     actions_log_prob)).mean() > self.target_kl:
                 break
-            for batch_index in self.generate_batches(n):
+            for batch_index in self.generate_batches(n, self.episode_batch_size
+                                                     ):
                 new_actions_prob = self.actor_network.forward_actor(
                     states[batch_index]).gather(
                     1, actions[batch_index])
@@ -175,7 +185,8 @@ class Agent:
                 actor_total_loss += actor_loss.item()
 
         for _ in range(self.n_critic_epochs):
-            for batch_index in self.generate_batches(n):
+            for batch_index in self.generate_batches(n, self.episode_batch_size
+                                                     ):
                 new_states_value = self.critic_network(
                     states[batch_index])
                 critic_loss = torch.nn.functional.mse_loss(
@@ -191,24 +202,28 @@ class Agent:
             old_actions_prob = self.actor_network.forward_actor(
                 states).detach()
             for _ in range(self.n_auxiliary_epochs):
-                new_actions_prob, states_value = self.actor_network(states)
-                auxiliary_loss = torch.nn.functional.mse_loss(states_value,
-                                                              advantages)
-                joint_loss = auxiliary_loss + self.beta_clone * \
-                    self.kl_divergence(old_actions_prob, new_actions_prob)
-                self.actor_network_optimizer.zero_grad()
-                joint_loss.backward()
-                torch.nn.utils.clip_grad.clip_grad_norm_(
-                    self.actor_network.parameters(), 1.)
-                self.actor_network_optimizer.step()
-                joint_total_loss += joint_loss.item()
+                for batch_index in self.generate_batches(
+                        len(self.memory), self.auxiliary_batch_size):
+                    new_actions_prob, states_value = self.actor_network(
+                        states[batch_index])
+                    auxiliary_loss = torch.nn.functional.mse_loss(
+                        states_value, advantages[batch_index])
+                    joint_loss = auxiliary_loss + self.beta_clone * \
+                        self.kl_divergence(old_actions_prob, new_actions_prob)
+                    self.actor_network_optimizer.zero_grad()
+                    joint_loss.backward()
+                    torch.nn.utils.clip_grad.clip_grad_norm_(
+                        self.actor_network.parameters(), 1.)
+                    self.actor_network_optimizer.step()
+                    joint_total_loss += joint_loss.item()
 
-                critic_loss = torch.nn.functional.mse_loss(self.critic_network(
-                    states), advantages)
-                self.critic_network_optimizer.zero_grad()
-                critic_loss.backward()
-                self.critic_network_optimizer.step()
-                critic_total_loss += critic_loss.item()
+                    critic_loss = torch.nn.functional.mse_loss(
+                        self.critic_network(states[batch_index]),
+                        advantages[batch_index])
+                    self.critic_network_optimizer.zero_grad()
+                    critic_loss.backward()
+                    self.critic_network_optimizer.step()
+                    critic_total_loss += critic_loss.item()
             self.memory.clear()
 
         return actor_total_loss, critic_total_loss, joint_total_loss
