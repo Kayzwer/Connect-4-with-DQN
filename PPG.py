@@ -186,7 +186,7 @@ class Agent:
                 critic_total_loss += critic_loss.item()
         self.episode_memory.clear()
 
-        if episode % self.N_policy:
+        if (episode + 1) % self.N_policy == 0:
             states, advantages = self.memory.get_data()
             old_actions_prob = self.actor_network.forward_actor(
                 states).detach()
