@@ -3,7 +3,7 @@ import numpy as np
 from typing import List, Tuple
 from torch.optim import RMSprop
 from torch.distributions import Categorical
-from models import ActorNetwork, CriticNetwork
+from models import ActorResNet, CriticResNet
 
 
 class ReplayBuffer:
@@ -105,10 +105,10 @@ class Agent:
         assert 0. <= entropy_weight <= 1.
         assert 0. <= beta_clone
         assert 0 < N_policy
-        self.actor_network = ActorNetwork()
+        self.actor_network = ActorResNet()
         self.actor_network_optimizer = RMSprop(
             self.actor_network.parameters(), actor_alpha)
-        self.critic_network = CriticNetwork()
+        self.critic_network = CriticResNet()
         self.critic_network_optimizer = RMSprop(
             self.critic_network.parameters(), critic_alpha)
         self.episode_memory = ReplayBuffer()

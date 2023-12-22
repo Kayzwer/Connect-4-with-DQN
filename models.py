@@ -284,3 +284,138 @@ class CriticNetwork(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.layers(x)
+
+
+class ActorResNet(nn.Module):
+    def __init__(self) -> None:
+        super().__init__()
+        self.conv2d_layers = nn.Sequential(
+            nn.Conv2d(1, 64, 4),
+            nn.ReLU(),
+            nn.Conv2d(64, 64, 2),
+            nn.Flatten(),
+            nn.ReLU()
+        )
+        for layer in self.conv2d_layers:
+            if isinstance(layer, nn.Conv2d):
+                torch.nn.init.kaiming_normal_(layer.weight)
+                torch.nn.init.zeros_(layer.bias)
+
+        self.linear_layers = nn.Sequential(
+            nn.Linear(426, 256),
+            nn.ReLU(),
+            nn.Linear(256, 128)
+        )
+        for layer in self.linear_layers:
+            if isinstance(layer, nn.Linear):
+                torch.nn.init.kaiming_normal_(layer.weight)
+                torch.nn.init.zeros_(layer.bias)
+        self.final_layers = nn.Sequential(
+            nn.Linear(554, 256),
+            nn.ReLU(),
+            nn.Linear(256, 128),
+            nn.ReLU(),
+            nn.Linear(128, 64),
+            nn.ReLU()
+        )
+        for layer in self.final_layers:
+            if isinstance(layer, nn.Linear):
+                torch.nn.init.kaiming_normal_(layer.weight)
+                torch.nn.init.zeros_(layer.bias)
+        self.actor_layers = nn.Sequential(
+            nn.Linear(64, 32),
+            nn.ReLU(),
+            nn.Linear(32, 7),
+            nn.Softmax(dim=1)
+        )
+        for layer in self.actor_layers:
+            if isinstance(layer, nn.Linear):
+                torch.nn.init.kaiming_normal_(layer.weight)
+                torch.nn.init.zeros_(layer.bias)
+        torch.nn.init.zeros_(self.actor_layers[-2].weight)
+        torch.nn.init.zeros_(self.actor_layers[-2].bias)
+        self.critic_layers = nn.Sequential(
+            nn.Linear(64, 32),
+            nn.ReLU(),
+            nn.Linear(32, 16),
+            nn.ReLU(),
+            nn.Linear(16, 1)
+        )
+        for layer in self.critic_layers:
+            if isinstance(layer, nn.Linear):
+                torch.nn.init.kaiming_normal_(layer.weight)
+                torch.nn.init.zeros_(layer.bias)
+        torch.nn.init.zeros_(self.critic_layers[-1].weight)
+        torch.nn.init.zeros_(self.critic_layers[-1].bias)
+
+    def forward_actor(self, x: torch.Tensor) -> torch.Tensor:
+        conv_output = torch.cat((x.flatten(start_dim=1), self.conv2d_layers(x)
+                                 ), dim=1)
+        linear_output = torch.cat((conv_output, self.linear_layers(conv_output)
+                                   ), dim=1)
+        feature = self.final_layers(linear_output)
+        return self.actor_layers(feature)
+
+    def forward_critic(self, x: torch.Tensor) -> torch.Tensor:
+        conv_output = torch.cat((x.flatten(start_dim=1), self.conv2d_layers(x)
+                                 ), dim=1)
+        linear_output = torch.cat((conv_output, self.linear_layers(conv_output)
+                                   ), dim=1)
+        feature = self.final_layers(linear_output)
+        return self.critic_layers(feature)
+
+    def forward(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+        conv_output = torch.cat((x.flatten(start_dim=1), self.conv2d_layers(x)
+                                 ), dim=1)
+        linear_output = torch.cat((conv_output, self.linear_layers(conv_output)
+                                   ), dim=1)
+        feature = self.final_layers(linear_output)
+        return self.actor_layers(feature), self.critic_layers(feature)
+
+
+class CriticResNet(nn.Module):
+    def __init__(self) -> None:
+        super().__init__()
+        self.conv2d_layers = nn.Sequential(
+            nn.Conv2d(1, 64, 4),
+            nn.ReLU(),
+            nn.Conv2d(64, 64, 2),
+            nn.Flatten(),
+            nn.ReLU()
+        )
+        for layer in self.conv2d_layers:
+            if isinstance(layer, nn.Conv2d):
+                torch.nn.init.kaiming_normal_(layer.weight)
+                torch.nn.init.zeros_(layer.bias)
+
+        self.linear_layers = nn.Sequential(
+            nn.Linear(426, 256),
+            nn.ReLU(),
+            nn.Linear(256, 128)
+        )
+        for layer in self.linear_layers:
+            if isinstance(layer, nn.Linear):
+                torch.nn.init.kaiming_normal_(layer.weight)
+                torch.nn.init.zeros_(layer.bias)
+        self.final_layers = nn.Sequential(
+            nn.Linear(554, 256),
+            nn.ReLU(),
+            nn.Linear(256, 128),
+            nn.ReLU(),
+            nn.Linear(128, 64),
+            nn.ReLU(),
+            nn.Linear(64, 1)
+        )
+        for layer in self.final_layers:
+            if isinstance(layer, nn.Linear):
+                torch.nn.init.kaiming_normal_(layer.weight)
+                torch.nn.init.zeros_(layer.bias)
+        torch.nn.init.zeros_(self.final_layers[-1].weight)
+        torch.nn.init.zeros_(self.final_layers[-1].bias)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        conv_output = torch.cat((x.flatten(start_dim=1), self.conv2d_layers(x)
+                                 ), dim=1)
+        linear_output = torch.cat((conv_output, self.linear_layers(conv_output)
+                                   ), dim=1)
+        return self.final_layers(linear_output)
