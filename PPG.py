@@ -193,6 +193,8 @@ class Agent:
                     new_states_value, advantages[batch_index])
                 self.critic_network_optimizer.zero_grad()
                 critic_loss.backward()
+                torch.nn.utils.clip_grad.clip_grad_norm_(
+                    self.critic_network.parameters(), 1.)
                 self.critic_network_optimizer.step()
                 critic_total_loss += critic_loss.item()
         self.episode_memory.clear()
@@ -209,7 +211,8 @@ class Agent:
                     auxiliary_loss = torch.nn.functional.mse_loss(
                         states_value, advantages[batch_index])
                     joint_loss = auxiliary_loss + self.beta_clone * \
-                        self.kl_divergence(old_actions_prob, new_actions_prob)
+                        self.kl_divergence(old_actions_prob[batch_index],
+                                           new_actions_prob)
                     self.actor_network_optimizer.zero_grad()
                     joint_loss.backward()
                     torch.nn.utils.clip_grad.clip_grad_norm_(
@@ -222,6 +225,8 @@ class Agent:
                         advantages[batch_index])
                     self.critic_network_optimizer.zero_grad()
                     critic_loss.backward()
+                    torch.nn.utils.clip_grad.clip_grad_norm_(
+                        self.critic_network.parameters(), 1.)
                     self.critic_network_optimizer.step()
                     critic_total_loss += critic_loss.item()
             self.memory.clear()

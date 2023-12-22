@@ -4,10 +4,8 @@ from Connect4 import Connect4
 
 if __name__ == "__main__":
     env = Connect4()
-    agent1 = Agent(.00005, .0001, .999, .95, .2, .05, .01, 1., 1, 1, 4, 8, 32,
-                   16)
-    agent2 = Agent(.00005, .0001, .999, .95, .2, .05, .01, 1., 1, 1, 4, 8, 32,
-                   16)
+    agent1 = Agent(5e-7, 5e-7, .999, .95, .2, .05, .01, 1., 1, 1, 1, 4, 16, 16)
+    agent2 = Agent(5e-7, 5e-7, .999, .95, .2, .05, .01, 1., 1, 1, 1, 4, 16, 16)
     episodes = 5000000
     iteration_to_save = 500
     iteration_to_log_game = 1000
