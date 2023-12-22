@@ -87,6 +87,7 @@ class Memory:
     def clear(self) -> None:
         self.state_memory.clear()
         self.advantage_memory.clear()
+        self.size = 0
 
 
 class Agent:
